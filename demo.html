@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="mn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Гастро катеринг — AI туслах</title>
+<link href="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css" rel="stylesheet">
+<style>
+  :root {
+    --chat--color-primary: #b3261e;
+    --chat--color-primary-shade-50: #9a1f18;
+    --chat--color-primary-shade-100: #821a14;
+    --chat--color-secondary: #b3261e;
+    --chat--color-secondary-shade-50: #9a1f18;
+    --chat--header--background: #ffffff;
+    --chat--header--color: #231c18;
+    --chat--header-height: auto;
+    --chat--header--padding: 16px 20px;
+    --chat--heading--font-size: 20px;
+    --chat--subtitle--font-size: 13px;
+    --chat--subtitle--line-height: 1.4;
+    --chat--message--font-size: 15px;
+    --chat--message-line-height: 1.5;
+    --chat--message--border-radius: 16px;
+    --chat--message--bot--background: #ffffff;
+    --chat--message--bot--color: #231c18;
+    --chat--message--bot--border: 1px solid #eadfd4;
+    --chat--message--user--background: #b3261e;
+    --chat--message--user--color: #ffffff;
+    --chat--body--background: #f6f1ec;
+    --chat--footer--background: #ffffff;
+    --chat--input--border: 1px solid #e2d6ca;
+    --chat--textarea--height: 48px;
+  }
+  html, body { margin: 0; height: 100%; background: #e9e1d9; }
+  #n8n-chat { height: 100%; }
+  .chat-layout { max-width: 760px; margin: 0 auto; height: 100%; box-shadow: 0 0 0 1px #e2d6ca, 0 12px 40px rgba(60,30,10,.10); }
+  .chat-header { border-bottom: 1px solid #eee3d8; }
+  .chat-header p { color: #7a6a5e; margin-top: 2px; }
+  .chat-message { max-width: 82%; width: fit-content; box-shadow: 0 1px 2px rgba(60,30,10,.06); }
+  .chat-message-from-user { margin-left: auto; }
+  .chat-message-markdown p { margin: 0 0 .45em; }
+  .chat-message-markdown p:last-child { margin-bottom: 0; }
+  .chat-message-markdown img {
+    width: 150px; max-width: 44%; height: auto; border-radius: 10px;
+    margin: 6px 6px 0 0; display: inline-block; vertical-align: top;
+    border: 1px solid #eadfd4; cursor: zoom-in; transition: transform .15s;
+  }
+  .chat-message-markdown img:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(60,30,10,.18); }
+
+  /* Picture viewer: opens inside the page instead of a new tab */
+  .gx-viewer { position: fixed; inset: 0; z-index: 9999; display: none; background: rgba(20,12,8,.92); }
+  .gx-viewer.open { display: block; }
+  .gx-stage { position: absolute; inset: 56px 0 64px; overflow: auto; display: grid; place-items: center; -webkit-overflow-scrolling: touch; }
+  .gx-stage img { max-width: 96vw; max-height: calc(100vh - 140px); border-radius: 8px; cursor: zoom-in; user-select: none; }
+  .gx-stage.zoomed { place-items: start; }
+  .gx-stage.zoomed img { max-width: none; max-height: none; width: 220vw; cursor: zoom-out; }
+  @media (min-width: 900px) { .gx-stage.zoomed img { width: 160vw; } }
+  .gx-bar { position: absolute; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; color: #fff; font: 14px/1.2 system-ui, sans-serif; }
+  .gx-top { top: 0; height: 56px; }
+  .gx-bottom { bottom: 0; height: 64px; justify-content: center; gap: 12px; }
+  .gx-btn { appearance: none; border: 0; background: rgba(255,255,255,.14); color: #fff; height: 40px; min-width: 40px; padding: 0 14px; border-radius: 20px; font-size: 15px; cursor: pointer; }
+  .gx-btn:hover, .gx-btn:focus-visible { background: rgba(255,255,255,.26); outline: none; }
+  .gx-btn[hidden] { display: none; }
+</style>
+</head>
+<body>
+<div id="n8n-chat"></div>
+
+<div class="gx-viewer" id="gx" role="dialog" aria-modal="true" aria-label="Зураг томруулж харах">
+  <div class="gx-bar gx-top">
+    <span id="gx-count"></span>
+    <button class="gx-btn" id="gx-close" aria-label="Хаах">✕ Хаах</button>
+  </div>
+  <div class="gx-stage" id="gx-stage"><img id="gx-img" alt="Цэсний зураг"></div>
+  <div class="gx-bar gx-bottom">
+    <button class="gx-btn" id="gx-prev" aria-label="Өмнөх">‹ Өмнөх</button>
+    <button class="gx-btn" id="gx-zoom">🔍 Томруулах</button>
+    <button class="gx-btn" id="gx-next" aria-label="Дараах">Дараах ›</button>
+  </div>
+</div>
+
+<script type="module">
+  import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
+
+  createChat({
+    webhookUrl: 'https://ai.zevchat.com/webhook/d8184418-a21d-47f4-b706-4a4df4e4f646/chat',
+    mode: 'fullscreen',
+    target: '#n8n-chat',
+    showWelcomeScreen: false,
+    loadPreviousSession: false,
+    initialMessages: [
+      'Сайн байна уу! 👋',
+      'Гастро катерингийн AI туслах байна. Кейтеринг, Гастро Фреш хөлдүү хоол, үнэ, захиалгын талаар асуугаарай.'
+    ],
+    i18n: {
+      en: {
+        title: 'Гастро катеринг',
+        subtitle: 'AI туслах · демо',
+        footer: '',
+        getStarted: 'Эхлэх',
+        inputPlaceholder: 'Мессежээ бичнэ үү...',
+        closeButtonTooltip: 'Хаах'
+      }
+    }
+  });
+
+  // ---- picture viewer ----
+  const gx = document.getElementById('gx'), stage = document.getElementById('gx-stage'), img = document.getElementById('gx-img');
+  const prev = document.getElementById('gx-prev'), next = document.getElementById('gx-next');
+  const zoomBtn = document.getElementById('gx-zoom'), count = document.getElementById('gx-count');
+  let list = [], idx = 0;
+
+  function show() {
+    img.src = list[idx];
+    stage.classList.remove('zoomed'); zoomBtn.textContent = '🔍 Томруулах';
+    count.textContent = list.length > 1 ? (idx + 1) + ' / ' + list.length : '';
+    prev.hidden = next.hidden = list.length < 2;
+  }
+  function open(srcs, i) { list = srcs; idx = i; show(); gx.classList.add('open'); document.getElementById('gx-close').focus(); }
+  function close() { gx.classList.remove('open'); img.removeAttribute('src'); }
+  function toggleZoom() {
+    const z = stage.classList.toggle('zoomed');
+    zoomBtn.textContent = z ? '↩ Багасгах' : '🔍 Томруулах';
+  }
+
+  // Catch clicks on chat pictures before the link opens a new tab
+  document.addEventListener('click', (e) => {
+    const pic = e.target.closest && e.target.closest('.chat-message-markdown img');
+    if (!pic) return;
+    e.preventDefault(); e.stopPropagation();
+    const pics = [...pic.closest('.chat-message-markdown').querySelectorAll('img')];
+    open(pics.map(p => p.currentSrc || p.src), pics.indexOf(pic));
+  }, true);
+
+  img.addEventListener('click', toggleZoom);
+  zoomBtn.addEventListener('click', toggleZoom);
+  prev.addEventListener('click', () => { idx = (idx - 1 + list.length) % list.length; show(); });
+  next.addEventListener('click', () => { idx = (idx + 1) % list.length; show(); });
+  document.getElementById('gx-close').addEventListener('click', close);
+  gx.addEventListener('click', (e) => { if (e.target === gx || e.target === stage) close(); });
+  document.addEventListener('keydown', (e) => {
+    if (!gx.classList.contains('open')) return;
+    if (e.key === 'Escape') close();
+    if (e.key === 'ArrowLeft' && list.length > 1) prev.click();
+    if (e.key === 'ArrowRight' && list.length > 1) next.click();
+  });
+</script>
+</body>
+</html>
